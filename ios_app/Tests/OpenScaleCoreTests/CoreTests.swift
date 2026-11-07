@@ -72,6 +72,10 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(try MeasurementStore(path: path).all(), [m])
         XCTAssertThrowsError(try store.insert([Measurement(weightKg: 80), Measurement(weightKg: -1)]))
         XCTAssertEqual(try store.all(), [m])
-        try store.delete(id: m.id); XCTAssertTrue(try store.all().isEmpty)
+        let other = Measurement(date: Date(timeIntervalSince1970: 1001), weightKg: 70)
+        try store.insert([other])
+        try store.delete(id: m.id)
+        XCTAssertEqual(try store.all(), [other], "Undo-style deletion must preserve unrelated records")
+        try store.delete(id: other.id); XCTAssertTrue(try store.all().isEmpty)
     }
 }

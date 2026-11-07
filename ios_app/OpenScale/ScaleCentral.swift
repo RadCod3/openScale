@@ -153,6 +153,10 @@ enum WeighInPhase: String {
     }
     func clearReading() { reading = nil; capturedMeasurement = nil; phase = .idle; status = "Reading discarded. You can take another weigh-in." }
     func markSaved() { reading = nil; capturedMeasurement = nil; phase = .saved; status = "Your measurement is in the journal." }
+    func markUndone() {
+        guard reading == nil, !active, !scanning else { return }
+        phase = .idle; status = "Automatic save undone. Step off and on again for a new weigh-in."
+    }
     func changeScale() {
         guard reading?.locked != true else { return }
         stop(); rememberedScale = nil; preferences?.removeObject(forKey: "rememberedScale")

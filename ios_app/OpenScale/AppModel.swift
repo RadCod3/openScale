@@ -72,13 +72,14 @@ typealias WeighIn = OpenScaleCore.Measurement
         lastAutomaticMeasurement = m
         return true
     }
-    func undoAutomaticSave() {
-        guard let m = lastAutomaticMeasurement else { return }
+    @discardableResult func undoAutomaticSave() -> Bool {
+        guard let m = lastAutomaticMeasurement else { return false }
         do {
             guard let store else { throw StoreError.database("Storage is unavailable.") }
             try store.delete(id: m.id); try reload()
             lastAutomaticMeasurement = nil; notice = "Automatic save undone."
-        } catch { problem = error.localizedDescription }
+            return true
+        } catch { problem = error.localizedDescription; return false }
     }
     func importCSV(_ result: CSVImport) {
         do {

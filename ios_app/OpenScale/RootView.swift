@@ -175,7 +175,9 @@ struct ScaleView: View {
                     Section("Saved automatically") {
                         LabeledContent("Weight", value: weightText(saved.weightKg))
                         Text(saved.date.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
-                        Button("Undo automatic save", systemImage: "arrow.uturn.backward") { model.undoAutomaticSave() }
+                        Button("Undo automatic save", systemImage: "arrow.uturn.backward") {
+                            if model.undoAutomaticSave() { bluetooth.markUndone() }
+                        }
                     }
                 }
                 if let reading = bluetooth.reading {

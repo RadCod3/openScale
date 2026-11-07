@@ -22,6 +22,7 @@ final class OpenScaleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Undo automatic save"].waitForExistence(timeout: 5))
         capture("automatically-saved", app)
         app.buttons["Undo automatic save"].tap()
+        XCTAssertTrue(app.staticTexts["Automatic save undone. Step off and on again for a new weigh-in."].exists)
         app.tabBars.buttons["Journal"].tap()
         XCTAssertTrue(app.staticTexts["Your first measurement"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Weigh in"].tap()
@@ -38,6 +39,14 @@ final class OpenScaleUITests: XCTestCase {
         app.buttons["Save measurement"].tap()
         app.tabBars.buttons["Journal"].tap()
         XCTAssertTrue(app.staticTexts["75.5 kg"].waitForExistence(timeout: 5))
+    }
+    @MainActor func testRememberedListeningInDarkLargeText() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-scale", "--ui-testing-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        app.tabBars.buttons["Weigh in"].tap()
+        XCTAssertTrue(app.staticTexts["Waiting for your scale"].waitForExistence(timeout: 10))
+        capture("remembered-dark-large-type", app)
     }
     @MainActor func testManualEntryAndNativeScreens() throws {
         let app = XCUIApplication()
