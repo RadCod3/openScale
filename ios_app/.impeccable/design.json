@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-07T03:44:31.157486+00:00",
+  "title": "Design System: openScale for iPhone",
+  "extensions": {},
+  "components": [],
+  "narrative": {
+    "overview": "Preserve openScale's measurement-first purpose and blue interactive tint while adapting its Android flows to native iPhone conventions. This is an operating interface built with SwiftUI and Swift Charts. The established product and Android screenshots are the reference; no new visual identity or approved raster composition is implied.",
+    "keyCharacteristics": [],
+    "rules": [
+      {
+        "name": "The Semantic Color Rule",
+        "body": "Preserve system appearance adaptation; do not replace these roles with fixed light-theme samples. Production follows system light/dark appearance. A debug launch flag can select dark appearance for UI tests.",
+        "section": "colors"
+      },
+      {
+        "name": "The Readable Value Rule",
+        "body": "Keep weight units visible beside every weight value and in manual-input labels. Do not depend on tint alone to distinguish live and final readings.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do retain native tabs, grouped forms, semantic styles, explicit unit labels, and textual live/final status.",
+      "Do keep real history available alongside the chart and use the current accessibility-size row adaptation when extending journal content.",
+      "Do label estimates and imported values consistently with their actual provenance; keep experimental hardware status visible."
+    ],
+    "donts": [
+      "Don't introduce decorative cards, custom shadows, a fixed light palette, or a separate typography system.",
+      "Don't fabricate history, hardware compatibility, or verification evidence."
+    ]
+  }
+}
