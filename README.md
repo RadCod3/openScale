@@ -4,7 +4,8 @@
 
 Open-source weight and body metrics tracker, with support for Bluetooth scales
 
-An experimental native iPhone port is being developed in [ios_app](ios_app/README.md). Its current scope and hardware verification limits are documented there.
+> [!NOTE]
+> This fork includes an **experimental iOS port** built with SwiftUI and CoreBluetooth. It is under active development and currently supports a limited set of Chipsea/OKOK scale protocols. See the [iOS README](ios_app/README.md) for installation instructions, implemented features, and hardware verification limits.
 
 <a href="https://f-droid.org/repository/browse/?fdid=com.health.openscale" target="_blank">
   <img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/>
