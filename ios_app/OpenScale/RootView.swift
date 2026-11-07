@@ -153,37 +153,52 @@ struct ScaleView: View {
     @EnvironmentObject private var model: AppModel
     @StateObject private var bluetooth = ScaleCentral()
     @State private var profileSheet = false
+    @State private var isVisible = false
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Label(bluetooth.status, systemImage: bluetooth.active ? "wave.3.right" : "scalemass")
-                        .padding(.vertical, 8)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(bluetooth.phase.rawValue, systemImage: bluetooth.phase.symbol).font(.headline)
+                        Text(bluetooth.status).foregroundStyle(.secondary)
+                    }.padding(.vertical, 8)
                     if bluetooth.scanning || bluetooth.active {
                         Button("Stop") { bluetooth.stop() }
                     } else {
-                        Button("Search for my scale", systemImage: "magnifyingglass") { bluetooth.startSearch() }
+                        Button(bluetooth.rememberedScale == nil ? "Search for my scale" : "Listen for your scale", systemImage: "magnifyingglass") { bluetooth.startSearch() }
                             .disabled(bluetooth.reading?.locked == true)
                     }
                 } header: { Text("\(model.profileConfigured ? model.profile.name : "Your") weigh-in") }
-                  footer: { Text("Keep this screen open. Wake your scale by stepping on it, select it, then stand still for the final reading.") }
+                  footer: { Text(bluetooth.rememberedScale == nil ? "Keep this screen open. Wake your scale, select it once, then stand still." : "Your scale is remembered. Opening this screen listens for it automatically. Keep the app in the foreground.") }
+                if let saved = model.lastAutomaticMeasurement {
+                    Section("Saved automatically") {
+                        LabeledContent("Weight", value: weightText(saved.weightKg))
+                        Text(saved.date.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
+                        Button("Undo automatic save", systemImage: "arrow.uturn.backward") { model.undoAutomaticSave() }
+                    }
+                }
                 if let reading = bluetooth.reading {
                     Section(reading.locked ? "Measurement captured" : "Live weight") {
-                        LabeledContent("Weight", value: "\(model.unit.display(reading.weightKg).formatted(.number.precision(.fractionLength(1...2)))) \(model.unit.rawValue)")
+                        LabeledContent("Weight", value: weightText(reading.weightKg))
                         ForEach(reading.fields.keys.sorted(), id: \.self) { key in
                             LabeledContent(key.replacingOccurrences(of: "_", with: " ").capitalized, value: reading.fields[key] ?? "")
                         }
                         if reading.locked {
                             Button("Save measurement", systemImage: "checkmark") {
-                                let m = WeighIn(date: reading.date ?? Date(), weightKg: reading.weightKg, fields: reading.fields, source: bluetooth.selectedName ?? "Bluetooth")
-                                if model.save(m) { bluetooth.clearReading() }
+                                guard let m = bluetooth.capturedMeasurement else { return }
+                                if model.save(m) { bluetooth.markSaved() }
                             }
                             Button("Discard", role: .destructive) { bluetooth.clearReading() }
                         }
                     }
                 }
-                if !bluetooth.devices.isEmpty {
+                if let remembered = bluetooth.rememberedScale {
+                    Section("Your scale") {
+                        Label(remembered.name, systemImage: "scalemass")
+                        Button("Change scale") { bluetooth.changeScale() }.disabled(bluetooth.reading?.locked == true)
+                    }
+                } else if !bluetooth.devices.isEmpty {
                     Section("Nearby devices") {
                         ForEach(bluetooth.devices.sorted { a, b in a.canMeasure != b.canMeasure ? a.canMeasure : a.rssi > b.rssi }) { device in
                             Button {
@@ -191,7 +206,7 @@ struct ScaleView: View {
                                 else { bluetooth.select(device, profile: model.profile) }
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(device.name).foregroundStyle(.primary)
+                                    Text(device.displayName).foregroundStyle(.primary)
                                     Text(device.protocolName).font(.subheadline).foregroundStyle(.secondary)
                                     if !device.services.isEmpty { Text("Services: \(device.services.joined(separator: ", "))").font(.caption).foregroundStyle(.secondary) }
                                 }.padding(.vertical, 4)
@@ -199,6 +214,12 @@ struct ScaleView: View {
                         }
                     }
                 }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing-scale") {
+                    Button("Simulate weigh-in") { bluetooth.simulateTestReading(liveFirst: true) }
+                    Button("Replay final packet") { bluetooth.simulateTestReading(liveFirst: false) }
+                }
+                #endif
                 Section {
                     ShareLink(item: bluetooth.diagnostics()) { Label("Share Bluetooth diagnostics", systemImage: "square.and.arrow.up") }
                         .disabled(bluetooth.log.isEmpty)
@@ -206,11 +227,20 @@ struct ScaleView: View {
             }
             .navigationTitle("Weigh in")
             .sheet(isPresented: $profileSheet) { ProfileEditor() }
+            .onAppear {
+                isVisible = true
+                bluetooth.onCapture = { [model] measurement in model.saveAutomatically(measurement) }
+                bluetooth.resumeRemembered(profile: model.profile, profileConfigured: model.profileConfigured)
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active { bluetooth.stop() }
+                else if isVisible { bluetooth.resumeRemembered(profile: model.profile, profileConfigured: model.profileConfigured) }
             }
-            .onDisappear { bluetooth.stop() }
+            .onDisappear { isVisible = false; bluetooth.stop() }
         }
+    }
+    private func weightText(_ kilograms: Double) -> String {
+        "\(model.unit.display(kilograms).formatted(.number.precision(.fractionLength(1...2)))) \(model.unit.rawValue)"
     }
 }
 
@@ -258,6 +288,9 @@ struct SettingsView: View {
                     }
                 }
                 Section {
+                    Toggle("Save settled readings automatically", isOn: $model.automaticallySaveReadings)
+                } header: { Text("Weigh-in") } footer: { Text("When enabled, final Bluetooth readings are saved to your journal with an Undo option. Moving readings are never saved. Leave this off to review each reading before saving.") }
+                Section {
                     Button("Import Android CSV", systemImage: "square.and.arrow.down") { importing = true }
                     Button("Export measurements", systemImage: "square.and.arrow.up") { exporting = true }.disabled(model.measurements.isEmpty)
                 } header: { Text("Your data") } footer: { Text("Exports use kilograms for weight; other fields keep their imported values. History stays on this device. Automatic device backup is disabled for the measurement database; export a CSV to keep a copy.") }
@@ -281,7 +314,7 @@ struct SettingsView: View {
                 }
                 if let notice = model.notice { Section { Text(notice).foregroundStyle(.secondary) } }
                 Section("About") {
-                    LabeledContent("Version", value: "Native prototype · 0.1")
+                    LabeledContent("Version", value: "Native prototype · \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")")
                     Text("openScale is free software under GPLv3 or later. No account or cloud service is required. Scale support is experimental until verified on hardware.").foregroundStyle(.secondary)
                 }
             }

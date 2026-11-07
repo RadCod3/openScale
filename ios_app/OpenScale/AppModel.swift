@@ -10,6 +10,10 @@ typealias WeighIn = OpenScaleCore.Measurement
     @Published var notice: String?
     @Published var profile = Profile()
     @Published var profileConfigured = false
+    @Published var automaticallySaveReadings = false {
+        didSet { if storesPreferences { UserDefaults.standard.set(automaticallySaveReadings, forKey: "automaticallySaveReadings") } }
+    }
+    @Published private(set) var lastAutomaticMeasurement: WeighIn?
     @Published var unit: WeightUnit = .kg {
         didSet { if storesPreferences { UserDefaults.standard.set(unit.rawValue, forKey: "weightUnit") } }
     }
@@ -31,6 +35,7 @@ typealias WeighIn = OpenScaleCore.Measurement
         }
         #endif
         unit = WeightUnit(rawValue: UserDefaults.standard.string(forKey: "weightUnit") ?? "kg") ?? .kg
+        automaticallySaveReadings = UserDefaults.standard.bool(forKey: "automaticallySaveReadings")
         if let data = UserDefaults.standard.data(forKey: "profile"), let saved = try? JSONDecoder().decode(Profile.self, from: data) {
             profile = saved; profileConfigured = true
         }
@@ -61,6 +66,19 @@ typealias WeighIn = OpenScaleCore.Measurement
     }
     func delete(_ m: WeighIn) {
         do { try store?.delete(id: m.id); try reload() } catch { problem = error.localizedDescription }
+    }
+    func saveAutomatically(_ m: WeighIn) -> Bool {
+        guard automaticallySaveReadings, save(m) else { return false }
+        lastAutomaticMeasurement = m
+        return true
+    }
+    func undoAutomaticSave() {
+        guard let m = lastAutomaticMeasurement else { return }
+        do {
+            guard let store else { throw StoreError.database("Storage is unavailable.") }
+            try store.delete(id: m.id); try reload()
+            lastAutomaticMeasurement = nil; notice = "Automatic save undone."
+        } catch { problem = error.localizedDescription }
     }
     func importCSV(_ result: CSVImport) {
         do {

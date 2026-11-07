@@ -5,10 +5,12 @@ public struct RememberedScale: Codable, Equatable, Sendable {
     public let peripheralID: UUID
     public let name: String
     public let broadcastIdentity: Data?
+    public let isBroadcast: Bool
 
     public init(peripheralID: UUID, name: String, manufacturerData: Data?) {
         self.peripheralID = peripheralID
         self.name = name == "Unnamed device" || name.isEmpty ? "Your OKOK scale" : name
+        isBroadcast = manufacturerData.map(OKOKAdvertisement.recognizes) ?? false
         broadcastIdentity = Self.identity(in: manufacturerData)
     }
     public func matches(peripheralID: UUID, manufacturerData: Data?) -> Bool {
@@ -34,21 +36,19 @@ public struct FinalReadingGate: Sendable {
     public struct Receipt: Codable, Sendable {
         let device: String
         let weightKg: Double
-        let fields: [String: String]
         let capturedAt: Date
     }
     public private(set) var receipt: Receipt?
     private var liveDevices: Set<String> = []
     public init(receipt: Receipt? = nil) { self.receipt = receipt }
+    public mutating func beginSession() { liveDevices.removeAll() }
 
     public mutating func allows(_ reading: ScaleReading, device: String, now: Date = Date()) -> Bool {
         guard reading.locked else { liveDevices.insert(device); return true }
         let sawLive = liveDevices.remove(device) != nil
         if !sawLive, let receipt, receipt.device == device,
-           abs(now.timeIntervalSince(receipt.capturedAt)) < 120,
-           abs(receipt.weightKg - reading.weightKg) < 0.0001,
-           receipt.fields == reading.fields { return false }
-        receipt = Receipt(device: device, weightKg: reading.weightKg, fields: reading.fields, capturedAt: now)
+           abs(receipt.weightKg - reading.weightKg) < 0.0001 { return false }
+        receipt = Receipt(device: device, weightKg: reading.weightKg, capturedAt: now)
         return true
     }
 }

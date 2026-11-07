@@ -21,7 +21,9 @@ final class WeighInWorkflowTests: XCTestCase {
         XCTAssertTrue(remembered.matches(peripheralID: id, manufacturerData: nil))
         XCTAssertFalse(remembered.matches(peripheralID: UUID(), manufacturerData: nil))
         var blank = frame; blank.replaceSubrange(9...14, with: repeatElement(0, count: 6))
-        XCTAssertNil(RememberedScale(peripheralID: id, name: "Scale", manufacturerData: blank).broadcastIdentity)
+        let broadcast = RememberedScale(peripheralID: id, name: "Scale", manufacturerData: blank)
+        XCTAssertNil(broadcast.broadcastIdentity)
+        XCTAssertTrue(broadcast.isBroadcast, "A UUID-only broadcast scale must not require a GATT profile")
     }
     func testFinalBurstIsSuppressedAcrossSessionsAndRelaunch() throws {
         var gate = FinalReadingGate()
@@ -29,10 +31,14 @@ final class WeighInWorkflowTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1000)
         XCTAssertTrue(gate.allows(final, device: "scale", now: now))
         XCTAssertFalse(gate.allows(final, device: "scale", now: now.addingTimeInterval(1)))
+        XCTAssertFalse(gate.allows(ScaleReading(weightKg: 75.5, locked: true, fields: ["IMPEDANCE": "501"]), device: "scale", now: now.addingTimeInterval(2)))
         let receipt = try JSONDecoder().decode(FinalReadingGate.Receipt.self, from: JSONEncoder().encode(gate.receipt!))
         var relaunched = FinalReadingGate(receipt: receipt)
         XCTAssertFalse(relaunched.allows(final, device: "scale", now: now.addingTimeInterval(60)))
-        XCTAssertTrue(relaunched.allows(final, device: "scale", now: now.addingTimeInterval(121)))
+        XCTAssertFalse(relaunched.allows(final, device: "scale", now: now.addingTimeInterval(86400)), "Time alone must not turn a stale final into a new weigh-in")
+        XCTAssertTrue(relaunched.allows(ScaleReading(weightKg: 74, locked: false), device: "scale", now: now))
+        relaunched.beginSession()
+        XCTAssertFalse(relaunched.allows(final, device: "scale", now: now), "An interrupted live sequence must not leak into a new session")
     }
     func testNewLiveSequenceAllowsSameWeightAndDevicesAreIndependent() {
         var gate = FinalReadingGate()
